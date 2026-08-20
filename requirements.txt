@@ -1,0 +1,3 @@
+fitz
+requests
+lxml
