@@ -54,6 +54,3 @@ class PDFLoader:
 
     def normalize_text(self, text):
         pass
-
-pdf_loader = PDFLoader()
-print(pdf_loader.load("ingestion/exemple 1.pdf"))

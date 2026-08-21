@@ -1,0 +1,66 @@
+import csv
+import os
+
+class CSVLoader:
+    def __init__(
+        self, 
+        delimiter: str =',',
+        encoding: str ='utf-8',
+        quotechar='"',
+        has_header=True,
+        columns=None
+    ):
+        self.delimiter = delimiter
+        self.encoding=encoding
+        self.quotechar= quotechar
+        self.has_header = has_header
+        self.columns = columns
+
+    def load(self, path):
+        self.validate_file(path)
+        raw_data = self.read_csv(path)
+
+        if self.has_header:
+            self.validate_columns(raw_data)
+        clean_data = self.normalize_values(raw_data)
+        documents = self.rows_to_documents(clean_data)
+        return documents
+        
+    def validate_file(self, path):
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Critical error: File missing at '{path}'")
+        if os.path.getsize(path) == 0:
+            raise ValueError(f"Critical Error: File at '{path}' is empty")
+
+    def read_csv(self, path):
+        with open(path, mode='r', encoding=self.encoding) as f:
+            if self.has_header:
+                reader = csv.DictReader(f, delimiter=self.delimiter, quotechar=self.quotechar)
+                return [dict(row) for row in reader]
+            else:
+                reader = csv.reader(f, delimiter=self.delimiter, quotechar=self.quotechar)
+                return [{"column_"+str(i):val for i, val in enumerate(row)} for row in reader]
+            
+    def validate_columns(self, data):
+        if not self.columns or not data:
+            return
+
+        first_row_keys = data[0].keys()
+        missing_cols = [col for col in self.columns if col not in first_row_keys]
+        if missing_cols:
+            raise KeyError(f"Missing required columns in CSV: {missing_cols}")
+
+    def rows_to_documents(self, data):
+        if self.columns: 
+            return [{col: row[col] for col in self.columns} for row in data]
+        return data
+    
+    def normalize_values(self, rows):
+        normalized = []
+        for row in rows:
+            clean_row = {}
+            for key, val in row.items():
+                clean_val = val.strip() if isinstance(val, str) else val
+                clean_row[key] = None if clean_val == "" else clean_val
+            normalized.append(clean_row)
+        return normalized
