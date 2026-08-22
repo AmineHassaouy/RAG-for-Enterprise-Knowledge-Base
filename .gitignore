@@ -1,2 +1,4 @@
 venv/
 ingestion/exemple1.pdf
+test.py
+ingestion/data.csv

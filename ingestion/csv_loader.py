@@ -20,8 +20,12 @@ class CSVLoader:
         self.validate_file(path)
         raw_data = self.read_csv(path)
 
+        if not raw_data:
+            return []
+
         if self.has_header:
             self.validate_columns(raw_data)
+
         clean_data = self.normalize_values(raw_data)
         documents = self.rows_to_documents(clean_data)
         return documents
@@ -61,6 +65,9 @@ class CSVLoader:
             clean_row = {}
             for key, val in row.items():
                 clean_val = val.strip() if isinstance(val, str) else val
-                clean_row[key] = None if clean_val == "" else clean_val
+                if clean_val in ("", "NA", "N/A", "null", "None"):
+                    clean_row[key] = None 
+                else: 
+                    clean_row[key]= clean_val
             normalized.append(clean_row)
         return normalized
