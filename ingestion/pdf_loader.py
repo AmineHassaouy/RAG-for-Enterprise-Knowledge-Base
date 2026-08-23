@@ -1,5 +1,6 @@
 import pymupdf
 from pathlib import Path
+from .document import Document
 
 class PDFLoader:
     def __init__(self,
@@ -17,11 +18,22 @@ class PDFLoader:
         self.validate_file(path)
         pdf = self.open_pdf(path)
         try:
-            raw_pages = self.extract_pages(pdf)
-            pages = {}
-            for num, page in raw_pages.items():
-                pages[num] = self.normalize_text(self.extract_text(page))
-            return {"pages": pages, "total_pages": len(pages)}
+            documents = []
+
+            for num, page in self.extract_pages(pdf).items():
+                text = self.normalize_text(self.extract_text(page))
+                documents.append(
+                    Document(
+                        text = text,
+                        metadata = {
+                            "source" : str(path),
+                            "type" : "pdf",
+                            "page": num
+                        }
+                    )
+                )
+            return documents
+        
         finally:
             pdf.close()
 
@@ -49,4 +61,14 @@ class PDFLoader:
     def normalize_text(self, text):
         if not text:
             return ""
-        return text.encode(self.encoding, errors="ignore").decode(self.encoding).strip()
+
+        lines = text.splitlines()
+        cleaned_lines = []
+
+        for line in lines:
+            clean_line = " ".join(line.split())
+
+            if clean_line:
+                cleaned_lines.append(clean_line)
+                
+        return "\n\n".join(cleaned_lines)
