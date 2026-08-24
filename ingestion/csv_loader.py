@@ -1,5 +1,6 @@
 import csv
 import os
+from .document import Document
 
 class CSVLoader:
     def __init__(
@@ -27,7 +28,7 @@ class CSVLoader:
             self.validate_columns(raw_data)
 
         clean_data = self.normalize_values(raw_data)
-        documents = self.rows_to_documents(clean_data)
+        documents = self.rows_to_documents(clean_data, path)
         return documents
         
     def validate_file(self, path):
@@ -54,10 +55,29 @@ class CSVLoader:
         if missing_cols:
             raise KeyError(f"Missing required columns in CSV: {missing_cols}")
 
-    def rows_to_documents(self, data):
-        if self.columns: 
-            return [{col: row[col] for col in self.columns} for row in data]
-        return data
+    def rows_to_documents(self, data, path):
+        documents = []
+
+        for row_number, row in enumerate(data, start=1):
+            if self.columns:
+                row = {col: row[col] for col in self.columns}
+
+            text = "\n".join(
+                f"{key}: {value}" 
+                for key, value in row.items() if value is not None
+            )
+
+            documents.append(
+                Document(
+                    text=text,
+                    metadata={
+                        "source": str(path),
+                        "type": "csv",
+                        "row": row_number
+                    }
+                )
+            )
+        return documents
     
     def normalize_values(self, rows):
         normalized = []
