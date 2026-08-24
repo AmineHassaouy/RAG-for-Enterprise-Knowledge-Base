@@ -1,8 +1,9 @@
 import csv
 import os
+from .base_loader import BaseLoader
 from .document import Document
 
-class CSVLoader:
+class CSVLoader(BaseLoader):
     def __init__(
         self, 
         delimiter: str =',',

@@ -1,18 +1,15 @@
 import pymupdf
 from pathlib import Path
+from .base_loader import BaseLoader
 from .document import Document
 
-class PDFLoader:
+class PDFLoader(BaseLoader):
     def __init__(self,
-            extract_images = False,
             preserve_layout = True,
             password = None,
-            encoding = 'utf-8'
         ):
-        self.extract_images = extract_images
         self.preserve_layout = preserve_layout
         self.password = password
-        self.encoding = encoding
 
     def load(self, path):
         self.validate_file(path)

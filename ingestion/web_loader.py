@@ -1,8 +1,9 @@
 import requests
 from lxml import html
+from .base_loader import BaseLoader
 from .document import Document
 
-class WebLoader:
+class WebLoader(BaseLoader):
     def __init__(
             self, 
             timeout=10, 
@@ -12,7 +13,7 @@ class WebLoader:
             remove_tags=None
         ):
         self.timeout = timeout
-        self.allowed_content_types = list(allowed_content_types) if allowed_content_types else list(["text/html","application/json"])
+        self.allowed_content_types = [content_type.lower() for content_type in (allowed_content_types if allowed_content_types else ["text/html", "application/xhtml+xml"])]
         self.remove_tags = list(remove_tags) if remove_tags else list(["script", "style"])
         
         self.session = requests.Session()
@@ -60,26 +61,28 @@ class WebLoader:
         try:
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
+
+            content_type = response.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if content_type not in self.allowed_content_types:
+                raise ValueError(f"Unsupported content type '{content_type}' for URL: {url}")
+
             return response.text
-        except requests.exceptions.HTTPError as http_err:
-            print(f"HTTP error occurred: {http_err}")
-        except requests.exceptions.Timeout:
-            print("The request timed out!")
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Connection error occurred: {conn_err}")
-        except requests.exceptions.TooManyRedirects as redirect_err:
-            print(f"Too many redirects: {redirect_err}")
-        except requests.exceptions.RequestException as req_err:
-            print(f"An unexpected request error occurred: {req_err}")
-        return None
+        except requests.exceptions.HTTPError as e:
+            raise RuntimeError(f"HTTP error occurred while fetching {url}") from e
+        except requests.exceptions.Timeout as e:
+            raise TimeoutError(f"Request timed out for URL: {url}") from e
+        except requests.exceptions.ConnectionError as e:
+            raise ConnectionError(f"Connection error while fetching {url}") from e
+        except requests.exceptions.TooManyRedirects as e:
+            raise RuntimeError(f"Too many redirects while fetching {url}") from e
+        except requests.exceptions.RequestException as e:
+            raise(f"Request failed for {url}") from e
 
     def parse(self, html_as_text):
         try:
-            tree = html.fromstring(html_as_text)
-            return tree
+            return html.fromstring(html_as_text)
         except Exception as e:
-            print(f"Parsing error: {e}")
-            return None
+            raise ValueError("Failed to parse HTML content.") from e
         
     def clean(self, tree):
         target_xpath = " | ".join(f"//{tag}" for tag in self.remove_tags)
@@ -102,9 +105,7 @@ class WebLoader:
         return ""
 
     def extract_text(self, tree):
-        paragraphs = tree.xpath("//article//p | //main//p | //p")
-        paragraphs = list([p.text_content() for p in paragraphs])
-        return "\n".join(paragraphs).strip()
+        return tree.text_content().strip()
         
     def normalize_text(self, text):
         if not text:
