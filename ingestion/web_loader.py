@@ -1,5 +1,6 @@
 import requests
 from lxml import html
+from .document import Document
 
 class WebLoader:
     def __init__(
@@ -23,20 +24,38 @@ class WebLoader:
     def load(self, url):
         html_content = self.fetch(url)
         if not html_content:
-            return {"text": "", "metadata": {"source": url, "title": ""}}
+            return Document(
+                text = "",
+                metadata = {
+                    "source": url,
+                    "type": "web",
+                    "title": ""
+                }
+            )
+        
         tree = self.parse(html_content)
         if tree is None:
-            return {"text": "", "metadata": {"source": url, "title": ""}}
+            return Document(
+                            text = "",
+                            metadata = {
+                                "source": url,
+                                "type": "web",
+                                "title": ""
+                            }
+                        )
+        
         cleaned_tree = self.clean(tree)
         raw_title = self.extract_title(cleaned_tree)
         raw_text = self.extract_text(cleaned_tree)
-        return {
-            "text": self.normalize_text(raw_text),
-            "metadata": {
+        
+        return Document(
+            text = self.normalize_text(raw_text),
+            metadata = {
                 "source" : url,
+                "type" : "web",
                 "title": self.normalize_text(raw_title)
             }
-        }
+        )
     def fetch(self, url):
         try:
             response = self.session.get(url, timeout=self.timeout)
