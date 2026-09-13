@@ -1,84 +1,203 @@
-from typing import List, Optional
-import re
+from abc import ABC, abstractmethod
 
-class TextChunk:
-    """Represents a chunk of text with associated metadata."""
+from ingestion.document import Document, Chunk
 
-    def __init__(self, text: str, metadata: Optional[dict] = None):
-        self.text = text
-        self.metadata = metadata if metadata else {}
 
-    def __repr__(self):
-        return f"TextChunk(text={self.text[:50]}..., metadata={self.metadata})"
+class Chunker(ABC):
 
-class TextChunking:
-    """Splits text into chunks of a specified size."""
+    @abstractmethod
+    def chunk(self, document: Document) -> list[Chunk]:
+        pass
 
-    def __init__(self, chunk_size: int = 1000, overlap: int = 200, separator: str = "\n\n"):
-        """
-        Args:
-            chunk_size: Maximum size of each chunk (in characters).
-            overlap: Number of characters to overlap between chunks.
-            separator: String used to split the text (e.g., "\n\n" for paragraphs).
-        """
+
+class RecursiveChunker(Chunker):
+
+    def __init__(self, chunk_size: int = 500, overlap: int = 50):
         self.chunk_size = chunk_size
         self.overlap = overlap
-        self.separator = separator
 
-    def chunk_text(self, text: str) -> List[str]:
-        """Split text into chunks based on the separator and chunk size."""
-        if not text:
+    def chunk(self, document: Document) -> list[Chunk]:
+        if not document.text:
             return []
 
-        # Split text into paragraphs or sentences
-        segments = text.split(self.separator)
-        chunks = []
-        current_chunk = ""
+        text_chunks = self._split_text(document.text)
 
-        for segment in segments:
-            if not segment:
+        return [
+            Chunk(
+                text=text,
+                metadata=document.metadata.copy()
+            )
+            for text in text_chunks
+        ]
+
+    def _split_text(self, text: str) -> list[str]:
+        if len(text) <= self.chunk_size:
+            return [text]
+
+        separators = ["\n\n", "\n", ". ", " ", ""]
+
+        return self._recursive_split(text, separators)
+
+    def _recursive_split(
+        self,
+        text: str,
+        separators: list[str]
+    ) -> list[str]:
+
+        if len(text) <= self.chunk_size:
+            return [text]
+
+        if not separators:
+            return self._split_by_size(text)
+
+        separator = separators[0]
+
+        if separator == "":
+            pieces = list(text)
+        else:
+            pieces = text.split(separator)
+
+        chunks = []
+        current = ""
+
+        for piece in pieces:
+            candidate = (
+                piece
+                if not current
+                else current + separator + piece
+            )
+
+            if len(candidate) <= self.chunk_size:
+                current = candidate
                 continue
 
-            # Check if adding the segment exceeds the chunk size
-            if len(current_chunk) + len(segment) + len(self.separator) <= self.chunk_size:
-                current_chunk += (self.separator + segment).strip()
-            else:
-                if current_chunk:
-                    chunks.append(current_chunk)
-                current_chunk = segment
+            if current:
+                chunks.append(current)
 
-        # Add the last chunk if it's not empty
-        if current_chunk:
-            chunks.append(current_chunk)
+            if len(piece) > self.chunk_size:
+                chunks.extend(
+                    self._recursive_split(
+                        piece,
+                        separators[1:]
+                    )
+                )
+                current = ""
+            else:
+                current = piece
+
+        if current:
+            chunks.append(current)
+
+        return self._add_overlap(chunks)
+
+    def _split_by_size(self, text: str) -> list[str]:
+        return [
+            text[i:i + self.chunk_size]
+            for i in range(0, len(text), self.chunk_size)
+        ]
+
+    def _add_overlap(self, chunks: list[str]) -> list[str]:
+        if self.overlap <= 0 or len(chunks) <= 1:
+            return chunks
+
+        result = [chunks[0]]
+
+        for i in range(1, len(chunks)):
+            previous = chunks[i - 1]
+            overlap_text = previous[-self.overlap:]
+
+            result.append(
+                overlap_text + chunks[i]
+            )
+
+        return result
+
+
+class StructuralChunker(Chunker):
+
+    def __init__(
+        self,
+        chunk_size: int = 500,
+        overlap: int = 50
+    ):
+        self.chunk_size = chunk_size
+        self.overlap = overlap
+
+        self.fallback_chunker = RecursiveChunker(
+            chunk_size=chunk_size,
+            overlap=overlap
+        )
+
+    def chunk(self, document: Document) -> list[Chunk]:
+        blocks = document.metadata.get("blocks", [])
+
+        if not blocks:
+            return self.fallback_chunker.chunk(document)
+
+        sections = self._build_sections(blocks)
+
+        chunks = []
+
+        for section in sections:
+            section_text = section["text"]
+
+            if len(section_text) <= self.chunk_size:
+                chunks.append(
+                    Chunk(
+                        text=section_text,
+                        metadata={
+                            **document.metadata,
+                            "section": section.get("heading")
+                        }
+                    )
+                )
+            else:
+                section_document = Document(
+                    text=section_text,
+                    metadata={
+                        **document.metadata,
+                        "section": section.get("heading")
+                    }
+                )
+
+                chunks.extend(
+                    self.fallback_chunker.chunk(
+                        section_document
+                    )
+                )
 
         return chunks
 
-    def chunk_document(self, document: 'Document') -> List[TextChunk]:
-        """
-        Split a Document into chunks and preserve metadata.
+    def _build_sections(self, blocks: list[dict]) -> list[dict]:
+        sections = []
 
-        Args:
-            document: A Document object with `text` and `metadata` attributes.
+        current_heading = None
+        current_content = []
 
-        Returns:
-            List of TextChunk objects.
-        """
-        chunks = self.chunk_text(document.text)
-        return [
-            TextChunk(
-                text=chunk,
-                metadata={
-                    **document.metadata,
-                    "chunk_index": i,
-                    "total_chunks": len(chunks)
+        for block in blocks:
+
+            if block["type"] == "heading":
+
+                if current_content:
+                    sections.append(
+                        {
+                            "heading": current_heading,
+                            "text": "\n\n".join(current_content)
+                        }
+                    )
+
+                current_heading = block["text"]
+                current_content = [block["text"]]
+
+            else:
+                current_content.append(block["text"])
+
+        if current_content:
+            sections.append(
+                {
+                    "heading": current_heading,
+                    "text": "\n\n".join(current_content)
                 }
             )
-            for i, chunk in enumerate(chunks)
-        ]
 
-    def chunk_documents(self, documents: List['Document']) -> List[TextChunk]:
-        """Split a list of Document objects into chunks."""
-        all_chunks = []
-        for doc in documents:
-            all_chunks.extend(self.chunk_document(doc))
-        return all_chunks
+        return sections
