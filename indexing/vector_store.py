@@ -16,13 +16,13 @@ class VectoreStore():
         collection_name: str= "documents", 
         embedding_model: str= "sentence-transformers/all-MiniLM-L6-v2"
     ):
-        self.persist_directory = persist_directory
-        self.client = chromadb.PersistentClient(path = self.persist_directory)
+        self.persist_directory = Path(persist_directory)
+        self.client = chromadb.PersistentClient(path = str(self.persist_directory))
         self.collection = self.client.get_or_create_collection(name= collection_name)
         self.embedding_model = SentenceTransformer(embedding_model)
 
 
-    def add(self, chunks: list[Chunk] ):
+    def add(self, chunks: list[Chunk] ) -> None:
         if not chunks: 
             return
 
@@ -46,7 +46,7 @@ class VectoreStore():
     def delete_document(
         self,
         document_id: str,
-    ):
+    ) -> None:
         self.collection.delete(
             where={"document_id": document_id}
         )
@@ -99,5 +99,5 @@ class VectoreStore():
 
         return search_results
 
-    def count(self):
+    def count(self) -> int:
         return self.collection.count()
