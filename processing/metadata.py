@@ -51,6 +51,7 @@ class MetadataProcessor:
 
         for index, chunk in enumerate(chunks):
             metadata = self._normalize_metadata(chunk.metadata)
+            metadata = self._remove_processing_metadata(metadata)
 
             document_id = metadata.get("document_id")
 
@@ -142,3 +143,12 @@ class MetadataProcessor:
         return sha256(
             identity.encode("utf-8")
         ).hexdigest()
+    
+    def _remove_processing_metadata(self, metadata: dict) -> dict:
+        processing_fields = {"blocks"}
+
+        return {
+            key:value
+            for key, value in metadata.items()
+            if key not in processing_fields
+        }
