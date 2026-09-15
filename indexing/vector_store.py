@@ -9,7 +9,7 @@ class SearchResult:
     chunk: Chunk
     score: float
 
-class VectoreStore():
+class VectorStore():
     def __init__(
         self, 
         persist_directory: str= "data/chroma",
