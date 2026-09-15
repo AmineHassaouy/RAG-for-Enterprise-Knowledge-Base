@@ -62,7 +62,8 @@ class VectoreStore():
     def similarity_search(
         self, 
         query: str,
-        k: int = 5
+        k: int = 5,
+        filters: dict | None = None
     ) -> list[SearchResult]:
         
         if not query.strip():
@@ -75,7 +76,8 @@ class VectoreStore():
         )
         results = self.collection.query(
             query_embeddings=[embedded_query.tolist()],
-            n_results= k
+            n_results= k,
+            where= filters
         )
 
         documents = results["documents"][0]
@@ -90,12 +92,12 @@ class VectoreStore():
                 metadata=metadata
             )
 
-            search_result = SearchResult(
-                chunk= temp_chunk,
-                score = distance
+            search_results.append(
+                SearchResult(
+                    chunk= temp_chunk,
+                    score = distance
+                )
             )
-
-            search_results.append(search_result)
 
         return search_results
 
