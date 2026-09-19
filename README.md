@@ -343,3 +343,8 @@ AI & Data Science / Engineering
 
 GitHub: "@AmineHassaouy" (https://github.com/AmineHassaouy)
 
+---
+
+License
+
+This project is currently under development. License information will be added as the project matures.
