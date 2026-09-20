@@ -3,3 +3,5 @@ ingestion/exemple1.pdf
 test.py
 ingestion/data.csv
 .env
+**/__pycache__/
+data
