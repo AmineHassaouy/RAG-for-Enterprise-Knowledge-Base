@@ -1,9 +1,12 @@
 import os
 
+from dotenv import load_dotenv
 from mistralai.client import Mistral
 
 from indexing.vector_store import SearchResult
 from generation.prompt import build_prompt
+
+load_dotenv()
 
 
 class AnswerGenerator:
