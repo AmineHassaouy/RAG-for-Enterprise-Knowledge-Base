@@ -7,7 +7,7 @@ def build_prompt(
     context_parts = []
 
     for index, result in enumerate(results, start=1):
-        source = results.chunk.metadata.get("source")
+        source = result.chunk.metadata.get("source")
         page = result.chunk.metadata.get("page")
 
         source_info = ""
